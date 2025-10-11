@@ -8,6 +8,7 @@ import shutil
 import sys
 import tarfile
 from typing import Any, Generator, List, NamedTuple, Sequence, TypedDict
+import zipfile
 
 
 class KnownError(Exception):
@@ -109,7 +110,7 @@ def copy_command(manifests: List[str], destination: str):
             shutil.copy2(source_path, destination_path, follow_symlinks=True)
 
 
-def archive_command(manifests: List[str], archive: str):
+def tar_command(manifests: List[str], archive: str):
     manifests_data = get_ollama_manifests_data(manifests)
 
     archive_name = None if archive == "-" else archive
@@ -118,6 +119,15 @@ def archive_command(manifests: List[str], archive: str):
         for data in manifests_data:
             for file in data.files:
                 tar.add(path.join(data.root, file), file)
+
+
+def zip_command(manifests: List[str], archive: str):
+    manifests_data = get_ollama_manifests_data(manifests)
+
+    with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_STORED) as zip:
+        for data in manifests_data:
+            for file in data.files:
+                zip.write(path.join(data.root, file), file)
 
 
 def resolve_manifests(values: List[str], models_dir: str) -> list[str]:
@@ -153,7 +163,7 @@ if __name__ == '__main__':
     def main() -> int:
         try:
             parser = argparse.ArgumentParser()
-            parser.add_argument("--version", action='version', version="1.0.0")
+            parser.add_argument("--version", action='version', version="1.1.0")
 
             subparsers = parser.add_subparsers(dest="command")
 
@@ -180,9 +190,19 @@ if __name__ == '__main__':
                 help="Directory where the files will be copied. Will be created if it does not exists."
             )
 
-            parser_archive = subparsers.add_parser('archive', parents=[parent_parser])
+            parser_tar = subparsers.add_parser('tar', parents=[parent_parser])
             # TODO -c for create, -a for add
-            parser_archive.add_argument(
+            parser_tar.add_argument(
+                "--archive",
+                help="""
+                Archive to store the models in.
+                Use '-' to send the archive to the standard output.
+                """
+            )
+
+            parser_zip = subparsers.add_parser('zip', parents=[parent_parser])
+            # TODO -c for create, -a for add
+            parser_zip.add_argument(
                 "--archive",
                 help="""
                 Archive to store the models in.
@@ -198,8 +218,10 @@ if __name__ == '__main__':
                 list_command(manifests)
             elif args.command == "copy":
                 copy_command(manifests, args.to)
-            elif args.command == "archive":
-                archive_command(manifests, args.archive)
+            elif args.command == "tar":
+                tar_command(manifests, args.archive)
+            elif args.command == "zip":
+                zip_command(manifests, args.archive)
 
             return 0
         except KnownError as e:

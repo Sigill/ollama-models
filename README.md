@@ -31,6 +31,20 @@ This script essentially reads a model's manifest to identify those files.
 Note: A manifest is just a JSON file. A model named `name:tag` has it's manifest located at `<OLLAMA_MODELS>/models/manifests/registry.ollama.ai/library/name/tag`.\
 The commands below allows models to be specified using either their `name:tag` or their manifest.
 
+### list command
+
+The `list` commands will list the path of the files composing the model relative to the `OLLAMA_MODELS` directory.
+
+```sh
+$ ./ollama-models.py list qwen3:0.6b
+manifests/registry.ollama.ai/library/qwen3/0.6b
+blobs/sha256-b0830f4ff6a0220cfd995455206353b0ed23c0aee865218b154b7a75087b4e55
+blobs/sha256-7f4030143c1c477224c5434f8272c662a8b042079a0a584f0a27a1684fe2e1fa
+blobs/sha256-ae370d884f108d16e7cc8fd5259ebc5773a0afa6e078b11f4ed7e39a27e0dfc4
+blobs/sha256-d18a5cc71b84bc4af394a31116bd3932b42241de70c77d2b76d69a314ec8aa12
+blobs/sha256-cff3f395ef3756ab63e58b0ad1b32bb6f802905cae1472e6a12034e4246fbbdb
+```
+
 ### copy command
 
 Copy the files associated with some models to a directory.
@@ -45,29 +59,46 @@ Then, on the destination machine, you just have to copy the files to the `OLLAMA
 cp -r /tmp/usb-key/* $OLLAMA_MODELS
 ```
 
+### tar command
+
+The `tar` command allows to store the model in a tar archive:
+
+```sh
+# On machine A:
+ollama-models.py tar mistral:latest --archive /tmp/mistral.tar
+
+# Send it to machine B somehow...
+
+# On machine B:
+tar -xf /tmp/mistral.tar -C /usr/share/ollama/.ollama/models
+```
+
+### zip command
+
+The `zip` command allows to store the model in a zip archive:
+
+```sh
+# On machine A:
+ollama-models.py zip mistral:latest --archive /tmp/mistral.zip
+
+# Send it to machine B somehow...
+
+# On machine B:
+unzip /tmp/mistral.zip -d /usr/share/ollama/.ollama/models
+```
+
+Note: The generated zip file is uncompressed, it is just used as a container.\
+Models appears to compress poorly (only 5% file size reduction was observed), and while some compression algorithms have little to no impact on the compression time, the implementation is currently kept simple and does not use compression.
+
 ## Advanced usage
 
-Because Ollama models can be quite heavy, you might want to avoid doing intermediate copies.
+### Streaming data using rsync
 
-This script provide other commands that should allow you to directly send the models over the network from one machine to another.
-
-### list command
+Because Ollama models can be quite heavy, you might want to avoid creating intermediate copies or archives and directly send the models over the network.
 
 The most efficient way is probably to rely on [rsync](https://rsync.samba.org/) to transport the files.
 
-The `list` commands will list the path of the files composing the model relative to the `OLLAMA_MODELS` directory.
-
-```sh
-$ ./ollama-models.py list qwen3:0.6b
-manifests/registry.ollama.ai/library/qwen3/0.6b
-blobs/sha256-b0830f4ff6a0220cfd995455206353b0ed23c0aee865218b154b7a75087b4e55
-blobs/sha256-7f4030143c1c477224c5434f8272c662a8b042079a0a584f0a27a1684fe2e1fa
-blobs/sha256-ae370d884f108d16e7cc8fd5259ebc5773a0afa6e078b11f4ed7e39a27e0dfc4
-blobs/sha256-d18a5cc71b84bc4af394a31116bd3932b42241de70c77d2b76d69a314ec8aa12
-blobs/sha256-cff3f395ef3756ab63e58b0ad1b32bb6f802905cae1472e6a12034e4246fbbdb
-```
-
-This list can be used to instruct `rsync` which files to send from machine A to machine B.
+The `list` command can be used to instruct rsync which files to send from machine A to machine B.
 
 ```sh
 # On machine A:
@@ -86,30 +117,18 @@ rsync -avh --progress --files-from=:/tmp/files.txt \
   /usr/share/ollama/.ollama/models
 ```
 
-Note: Make sure to adjust the paths to whatever `OLLAMA_MODELS` is on both machines.
+Note: Make sure to adjust the paths to wherever Ollama stores the models on both machines.
 
-If `rsync` is unavailable, the files can also be sent using `scp`:
+### Streaming data using scp
+
+If `rsync` is unavailable, the files can be sent using scp with the `tar` or `zip` commands:
 
 ```sh
 # On machine A, to push to machine B:
-tar -c -C --files-from=/tmp/files.txt | ssh user@B tar -x -C /usr/share/ollama/.ollama/models
+./ollama-models.py tar mistral:latest --archive - | ssh user@B tar -x -C /usr/share/ollama/.ollama/models
 
 # Or, on machine B, to pull from machine A:
-ssh user@B tar -c -C --files-from=/tmp/files.txt | tar -x -C /usr/share/ollama/.ollama/models
-```
-
-### archive command
-
-The `archive` command allows to store the model in a tar archive:
-
-```sh
-# On machine A:
-ollama-models.py archive mistral:latest --archive /tmp/mistral.tar
-
-# Send it to machine B somehow...
-
-# On machine B:
-tar -xf /tmp/mistral.tar -C /usr/share/ollama/.ollama/models
+ssh user@B /somewhere/ollama-models.py tar mistral:latest --archive - | tar -x -C /usr/share/ollama/.ollama/models
 ```
 
 ## License
