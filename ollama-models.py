@@ -71,9 +71,9 @@ def get_ollama_manifest_data(manifest: str):
     size = sum(layer["size"] for layer in manifest_data["layers"]) + manifest_data["config"]["size"]
 
     for f in files:
-        absPath = path.join(root, f)
-        if not path.isfile(absPath):
-            raise KnownError(f"File not found: {absPath}")
+        abs_path = path.join(root, f)
+        if not path.isfile(abs_path):
+            raise KnownError(f"File not found: {abs_path}")
 
     return ManifestData(root=root, files=files, size=size)
 
@@ -110,24 +110,24 @@ def copy_command(manifests: List[str], destination: str):
             shutil.copy2(source_path, destination_path, follow_symlinks=True)
 
 
-def tar_command(manifests: List[str], archive: str):
+def tar_command(manifests: List[str], archive_path: str):
     manifests_data = get_ollama_manifests_data(manifests)
 
-    archive_name = None if archive == "-" else archive
-    fileobj = sys.stdout.buffer if archive == "-" else None
-    with tarfile.open(archive_name, "w", fileobj=fileobj) as tar:
+    archive_name = None if archive_path == "-" else archive_path
+    fileobj = sys.stdout.buffer if archive_path == "-" else None
+    with tarfile.open(archive_name, "w", fileobj=fileobj) as archive:
         for data in manifests_data:
             for file in data.files:
-                tar.add(path.join(data.root, file), file)
+                archive.add(path.join(data.root, file), file)
 
 
-def zip_command(manifests: List[str], archive: str):
+def zip_command(manifests: List[str], archive_path: str):
     manifests_data = get_ollama_manifests_data(manifests)
 
-    with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_STORED) as zip:
+    with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_STORED) as archive:
         for data in manifests_data:
             for file in data.files:
-                zip.write(path.join(data.root, file), file)
+                archive.write(path.join(data.root, file), file)
 
 
 def resolve_manifests(values: List[str], models_dir: str) -> list[str]:
