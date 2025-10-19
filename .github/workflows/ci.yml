@@ -9,7 +9,7 @@ on:
   pull_request:
 
 jobs:
-  flake8:
+  static-analysis:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
