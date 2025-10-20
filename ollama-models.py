@@ -7,7 +7,7 @@ import re
 import shutil
 import sys
 import tarfile
-from typing import Any, Generator, List, NamedTuple, Sequence, TypedDict
+from typing import Any, Generator, List, NamedTuple, Sequence, Set, TypedDict
 import zipfile
 
 
@@ -116,10 +116,12 @@ def tar_command(manifests: List[str], archive_path: str):
     archive_name = None if archive_path == "-" else archive_path
     fileobj = sys.stdout.buffer if archive_path == "-" else None
     with tarfile.open(archive_name, "w", fileobj=fileobj) as archive:
-        # TODO identify duplicated files.
+        added_files: Set[str] = set()
         for data in manifests_data:
             for file in data.files:
-                archive.add(path.join(data.root, file), file)
+                if file not in added_files:
+                    archive.add(path.join(data.root, file), file)
+                    added_files.add(file)
 
 
 def zip_command(manifests: List[str], archive_path: str):
@@ -127,10 +129,12 @@ def zip_command(manifests: List[str], archive_path: str):
 
     io = sys.stdout.buffer if archive_path == "-" else archive_path
     with zipfile.ZipFile(io, "w", compression=zipfile.ZIP_STORED) as archive:
-        # TODO identify duplicated files.
+        added_files: Set[str] = set()
         for data in manifests_data:
             for file in data.files:
-                archive.write(path.join(data.root, file), file)
+                if file not in added_files:
+                    archive.write(path.join(data.root, file), file)
+                    added_files.add(file)
 
 
 def resolve_manifests(values: List[str], models_dir: str) -> list[str]:
