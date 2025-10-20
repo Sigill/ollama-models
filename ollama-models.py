@@ -116,6 +116,7 @@ def tar_command(manifests: List[str], archive_path: str):
     archive_name = None if archive_path == "-" else archive_path
     fileobj = sys.stdout.buffer if archive_path == "-" else None
     with tarfile.open(archive_name, "w", fileobj=fileobj) as archive:
+        # TODO identify duplicated files.
         for data in manifests_data:
             for file in data.files:
                 archive.add(path.join(data.root, file), file)
@@ -124,7 +125,9 @@ def tar_command(manifests: List[str], archive_path: str):
 def zip_command(manifests: List[str], archive_path: str):
     manifests_data = get_ollama_manifests_data(manifests)
 
-    with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_STORED) as archive:
+    io = sys.stdout.buffer if archive_path == "-" else archive_path
+    with zipfile.ZipFile(io, "w", compression=zipfile.ZIP_STORED) as archive:
+        # TODO identify duplicated files.
         for data in manifests_data:
             for file in data.files:
                 archive.write(path.join(data.root, file), file)
@@ -160,56 +163,54 @@ def resolve_manifests(values: List[str], models_dir: str) -> list[str]:
 
 
 if __name__ == '__main__':
-    def main() -> int:
+    def main() -> None:
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--version", action='version', version="1.1.0")
+
+        subparsers = parser.add_subparsers(dest="command")
+
+        parent_parser = argparse.ArgumentParser(add_help=False)
+        parent_parser.add_argument(
+            "--models-dir", metavar="DIRECTORY",
+            help=f"""
+            Directory where Ollama stores its models.
+            Not required using manifest.
+            (default: {get_ollama_models_dir()})
+            """,
+            default=get_ollama_models_dir()
+        )
+        parent_parser.add_argument(
+            "model", nargs='+',
+            help="Name of a model or path to its manifest."
+        )
+
+        subparsers.add_parser("list", parents=[parent_parser])
+
+        parser_copy = subparsers.add_parser("copy", parents=[parent_parser])
+        parser_copy.add_argument(
+            "--to", metavar="DIRECTORY", required=True,
+            help="Directory where the files will be copied. Will be created if it does not exists."
+        )
+
+        parser_tar = subparsers.add_parser('tar', parents=[parent_parser])
+        parser_tar.add_argument(
+            "--archive",
+            help="""
+            Archive to store the models in.
+            Use '-' to send the archive to the standard output.
+            """
+        )
+
+        parser_zip = subparsers.add_parser('zip', parents=[parent_parser])
+        parser_zip.add_argument(
+            "--archive",
+            help="""
+            Archive to store the models in.
+            Use '-' to send the archive to the standard output.
+            """
+        )
+
         try:
-            parser = argparse.ArgumentParser()
-            parser.add_argument("--version", action='version', version="1.1.0")
-
-            subparsers = parser.add_subparsers(dest="command")
-
-            parent_parser = argparse.ArgumentParser(add_help=False)
-            parent_parser.add_argument(
-                "--models-dir", metavar="DIRECTORY",
-                help=f"""
-                Directory where Ollama stores its models.
-                Not required using manifest.
-                (default: {get_ollama_models_dir()})
-                """,
-                default=get_ollama_models_dir()
-            )
-            parent_parser.add_argument(
-                "model", nargs='+',
-                help="Name of a model or path to its manifest."
-            )
-
-            subparsers.add_parser("list", parents=[parent_parser])
-
-            parser_copy = subparsers.add_parser("copy", parents=[parent_parser])
-            parser_copy.add_argument(
-                "--to", metavar="DIRECTORY", required=True,
-                help="Directory where the files will be copied. Will be created if it does not exists."
-            )
-
-            parser_tar = subparsers.add_parser('tar', parents=[parent_parser])
-            # TODO -c for create, -a for add
-            parser_tar.add_argument(
-                "--archive",
-                help="""
-                Archive to store the models in.
-                Use '-' to send the archive to the standard output.
-                """
-            )
-
-            parser_zip = subparsers.add_parser('zip', parents=[parent_parser])
-            # TODO -c for create, -a for add
-            parser_zip.add_argument(
-                "--archive",
-                help="""
-                Archive to store the models in.
-                Use '-' to send the archive to the standard output.
-                """
-            )
-
             args = parser.parse_args()
 
             manifests = resolve_manifests(args.model, args.models_dir)
@@ -222,10 +223,7 @@ if __name__ == '__main__':
                 tar_command(manifests, args.archive)
             elif args.command == "zip":
                 zip_command(manifests, args.archive)
-
-            return 0
         except KnownError as e:
-            print(e, file=sys.stderr)
-            return 1
+            sys.exit(str(e))
 
-    raise SystemExit(main())
+    main()
